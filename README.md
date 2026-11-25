@@ -1,4 +1,4 @@
-# Scratch 清單實作（Scratch_Array_Command）
+# Scratch 清單實驗室（Scratch_Array_Command）
 
 讓國中學生動手操作 Scratch 的清單積木，認識「新增、刪除、修改、查詢」四類指令的互動練習網頁。
 

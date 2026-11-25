@@ -1,5 +1,5 @@
 /**
- * Scratch 清單實作 — 成績上傳（Google Apps Script）
+ * Scratch 清單實驗室 — 成績上傳（Google Apps Script）
  *
  * 使用方式：
  * 1. 在 Google 試算表選「擴充功能 → Apps Script」，建立綁定在這份試算表的專案。
@@ -14,7 +14,7 @@ const SHEET_NAME = '成績';
 
 function doGet() {
   return HtmlService.createHtmlOutputFromFile('index')
-    .setTitle('Scratch 清單實作')
+    .setTitle('Scratch 清單實驗室')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
 }

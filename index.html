@@ -742,7 +742,8 @@ function clearAnswer() {
   resetResult();
 }
 
-/* 作答區有積木 → 執行；按執行後顯示正確／錯誤 1 秒 → 下一題。作答區空的 → 下一題（可跳過） */
+/* 作答區有積木 → 執行。按執行後：正確 1 秒 → 下一題；錯誤 1 秒 → 回到執行。
+   作答區空的 → 下一題（可跳過） */
 let actState = "next";
 let flashTimer = null;
 function setAction(state) {
@@ -761,7 +762,7 @@ function onAction() {
   if (actState === "run") {
     const ok = run();
     setAction(ok ? "ok" : "bad");
-    flashTimer = setTimeout(() => setAction("next"), 1000);
+    flashTimer = setTimeout(() => setAction(ok ? "next" : "run"), 1000);
   } else if (actState === "next") {
     goNext();
   }

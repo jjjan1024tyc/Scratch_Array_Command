@@ -167,19 +167,20 @@
   @media (hover: none) { .slot-item .del { display: block; } }
 
   .run-row { display: flex; gap: 12px; justify-content: center; width: 100%; }
-  #runBtn {
-    flex: 0 1 220px; height: 58px; border: none; border-radius: 12px;
-    background: var(--run); color: #fff; font-size: 22px; font-weight: 700; letter-spacing: 6px;
-    cursor: pointer; box-shadow: 0 4px 0 #0c3d57;
+  /* 執行／正確／錯誤／下一題 共用一個按鈕 */
+  #actBtn {
+    flex: 0 1 240px; height: 58px; border: none; border-radius: 12px;
+    color: #fff; font-size: 22px; font-weight: 700; letter-spacing: 4px; white-space: nowrap;
+    cursor: pointer; background: var(--run); box-shadow: 0 4px 0 #0c3d57;
   }
-  #runBtn:not(:disabled):hover { filter: brightness(1.12); }
-  #runBtn:not(:disabled):active { transform: translateY(2px); box-shadow: 0 2px 0 #0c3d57; }
-  #runBtn:disabled { opacity: .4; cursor: not-allowed; }
-  #nextBtn {
-    flex: 0 0 auto; height: 58px; padding: 0 20px; border-radius: 12px;
-    font-size: 17px; font-weight: 700; white-space: nowrap; box-shadow: 0 4px 0 #2a5fc0;
-  }
-  #nextBtn:active { transform: translateY(2px); box-shadow: 0 2px 0 #2a5fc0; }
+  #actBtn.next { background: var(--blue); box-shadow: 0 4px 0 #2a5fc0; }
+  #actBtn.ok   { background: var(--ok);   box-shadow: 0 4px 0 #0b7a5a; animation: pop .3s; }
+  #actBtn.bad  { background: var(--bad);  box-shadow: 0 4px 0 #a83232; animation: shake .4s; }
+  #actBtn:not(:disabled):hover { filter: brightness(1.1); }
+  #actBtn:not(:disabled):active { transform: translateY(2px); }
+  #actBtn:disabled { cursor: default; }
+  @keyframes pop { 0% { transform: scale(.92); } 60% { transform: scale(1.06); } 100% { transform: none; } }
+  @keyframes shake { 0%, 100% { transform: none; } 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
 
   .qmark {
     width: 140px; height: 200px; border: 2px dashed #c9d2e3; border-radius: 12px;
@@ -343,8 +344,7 @@
         <div class="step-body">
           <div id="slot"></div>
           <div class="run-row">
-            <button id="runBtn" disabled>▶ 執行</button>
-            <button class="btn primary" id="nextBtn">下一題 ▶</button>
+            <button id="actBtn" class="next">下一題 ▶</button>
           </div>
         </div>
       </div>
@@ -726,25 +726,45 @@ function placeBlock(def, values, listName) {
   item.append(el, del);
   slot.appendChild(item);
   answers.push(entry);
-  $("runBtn").disabled = false;
   resetResult();
 }
 
 function removeAnswer(entry) {
   entry.item.remove();
   answers = answers.filter((a) => a !== entry);
-  if (!answers.length) {
-    $("slot").innerHTML = PLACEHOLDER;
-    $("runBtn").disabled = true;
-  }
+  if (!answers.length) $("slot").innerHTML = PLACEHOLDER;
   resetResult();
 }
 
 function clearAnswer() {
   $("slot").innerHTML = PLACEHOLDER;
   answers = [];
-  $("runBtn").disabled = true;
   resetResult();
+}
+
+/* 作答區有積木 → 執行；按執行後顯示正確／錯誤 1 秒 → 下一題。作答區空的 → 下一題（可跳過） */
+let actState = "next";
+let flashTimer = null;
+function setAction(state) {
+  clearTimeout(flashTimer);
+  actState = state;
+  const b = $("actBtn");
+  b.className = state;
+  b.disabled = state === "ok" || state === "bad";
+  b.textContent =
+    state === "run" ? "▶ 執行" :
+    state === "ok" ? "✓ 正確" :
+    state === "bad" ? "✕ 錯誤" :
+    qi === QUESTIONS.length - 1 ? "完成 ▶" : "下一題 ▶";
+}
+function onAction() {
+  if (actState === "run") {
+    const ok = run();
+    setAction(ok ? "ok" : "bad");
+    flashTimer = setTimeout(() => setAction("next"), 1000);
+  } else if (actState === "next") {
+    goNext();
+  }
 }
 
 function onAnswerEdited(el) {
@@ -772,6 +792,7 @@ function resetResult() {
     setCheck("check1", "", "① 作答區", "放好積木、填好白色欄位後，按「執行」。");
     setCheck("check2", "", "② 結果", "作答區正確後，才會檢查執行結果。");
   }
+  setAction(answers.length ? "run" : "next");
 }
 
 /* 第一階段：檢查作答區的積木與欄位 */
@@ -858,15 +879,16 @@ function syncScores() {
 const penaltyNote = () => solved[qi] ? "" :
   `（答錯扣 1 分，這題目前最多可得 ${maxNow(qi)} 分）`;
 
+/* 執行作答區的積木並判定；回傳 true＝正確、false＝錯誤 */
 function run() {
-  if (!answers.length) return;
+  if (!answers.length) return false;
   const q = QUESTIONS[qi];
   answers.forEach((a) => {
     a.el.classList.add("running");
     setTimeout(() => a.el.classList.remove("running"), 350);
   });
   runs[qi]++;
-  if (q.type === "select") { runSelect(q); return; }
+  if (q.type === "select") return runSelect(q);
 
   const { def, el } = answers[0];
   const args = valuesOf(el);
@@ -901,7 +923,7 @@ function run() {
     c1.bad.forEach((k) => inputs[k] && inputs[k].classList.add("err"));
     setCheck("check1", "bad", "① 作答區：不正確", (r.note ? r.note + " " : "") + c1.msg + penaltyNote());
     setCheck("check2", "", "② 結果：尚未判定", "作答區正確後，才會檢查執行結果。");
-    return;
+    return false;
   }
   setCheck("check1", "ok", "① 作答區：正確", "積木和欄位都對了。");
 
@@ -909,13 +931,14 @@ function run() {
   if (!resultOk) {
     markWrong();
     setCheck("check2", "bad", "② 結果：不正確", (r.note || "執行結果不是題目要的。") + penaltyNote());
-    return;
+    return false;
   }
   markSolved();
   setCheck("check2", "ok", "② 結果：正確",
     (q.type === "change" ? "結果清單和題目要求一樣。" :
       `回傳值是 ${String(r.result) === "" ? "空白" : formatValue(r.result)}，答對了！`) +
     ` 這題得 ${scoreOf(qi)} 分。`);
+  return true;
 }
 
 function runSelect(q) {
@@ -927,7 +950,7 @@ function runSelect(q) {
     markSolved();
     setCheck("check1", "ok", "① 作答區：正確", `全部選對了！這 ${q.target.length} 個都是「${q.cat}」指令。`);
     setCheck("check2", "ok", "② 得分", `這題得 ${scoreOf(qi)} 分。`);
-    return;
+    return true;
   }
   markWrong();
   const msg = [];
@@ -936,6 +959,7 @@ function runSelect(q) {
   setCheck("check1", "bad", "① 作答區：不正確", msg.join(""));
   setCheck("check2", solved[qi] ? "ok" : "", "② 得分",
     solved[qi] ? `這題已經答對，得 ${scoreOf(qi)} 分。` : penaltyNote().replace(/[（）]/g, ""));
+  return false;
 }
 
 /* 布林值加上中文說明 */
@@ -1002,7 +1026,6 @@ function loadQuestion(i) {
   $("hint").textContent = "提示：" + q.hint;
   $("originBox").innerHTML = "";
   if (!select) $("originBox").appendChild(renderMonitor(q.start));
-  $("nextBtn").textContent = i === QUESTIONS.length - 1 ? "完成 ▶" : "下一題 ▶";
   answers = [];
   clearAnswer();
   renderProgress();
@@ -1092,7 +1115,7 @@ function resetAll() {
   part2 = false;
 }
 
-$("runBtn").onclick = run;
+$("actBtn").onclick = onAction;
 $("clearBtn").onclick = clearAnswer;
 function updateHintTip() {
   $("hintBtn").dataset.tip =
@@ -1109,7 +1132,6 @@ $("hintBtn").onclick = () => {
   }
   h.style.display = opening ? "block" : "none";
 };
-$("nextBtn").onclick = goNext;
 $("againBtn").onclick = () => {
   resetAll();
   $("finish").style.display = "none";

@@ -152,6 +152,7 @@
   .flow.select-mode #slot { min-height: 160px; align-content: center; }
   #slot .placeholder { color: var(--muted); font-size: 14px; text-align: center; line-height: 1.6; }
   #slot.over { border-color: var(--blue); background: #eaf2ff; }
+  #slot.nudge { border-color: var(--bad); animation: shake .4s; }
   .slot-item { position: relative; display: inline-block; padding: 8px 10px; border-radius: 10px; }
   .slot-item.err { background: var(--bad-bg); box-shadow: 0 0 0 2px var(--bad); }
   .slot-item.dup { animation: dup .5s; }
@@ -344,7 +345,7 @@
         <div class="step-body">
           <div id="slot"></div>
           <div class="run-row">
-            <button id="actBtn" class="next">下一題 ▶</button>
+            <button id="actBtn">▶ 執行</button>
           </div>
         </div>
       </div>
@@ -742,8 +743,8 @@ function clearAnswer() {
   resetResult();
 }
 
-/* 作答區有積木 → 執行。按執行後：正確 1 秒 → 下一題；錯誤 1 秒 → 回到執行。
-   作答區空的 → 下一題（可跳過） */
+/* 按鈕平常是「執行」。按執行後：正確 1 秒 → 下一題；錯誤 1 秒 → 回到執行。
+   作答區空的時候按執行，只提示先放積木，不算答錯。已答對的題目清空作答區時顯示下一題。 */
 let actState = "next";
 let flashTimer = null;
 function setAction(state) {
@@ -760,6 +761,12 @@ function setAction(state) {
 }
 function onAction() {
   if (actState === "run") {
+    if (!answers.length) {
+      setCheck("check1", "bad", "① 作答區：還沒有積木", "請先把左邊的積木拖到作答區，再按「執行」。");
+      const slot = $("slot");
+      slot.classList.remove("nudge"); void slot.offsetWidth; slot.classList.add("nudge");
+      return;
+    }
     const ok = run();
     setAction(ok ? "ok" : "bad");
     flashTimer = setTimeout(() => setAction(ok ? "next" : "run"), 1000);
@@ -793,7 +800,7 @@ function resetResult() {
     setCheck("check1", "", "① 作答區", "放好積木、填好白色欄位後，按「執行」。");
     setCheck("check2", "", "② 結果", "作答區正確後，才會檢查執行結果。");
   }
-  setAction(answers.length ? "run" : "next");
+  setAction(!answers.length && solved[qi] ? "next" : "run");
 }
 
 /* 第一階段：檢查作答區的積木與欄位 */

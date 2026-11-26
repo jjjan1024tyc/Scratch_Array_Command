@@ -168,19 +168,24 @@
   @media (hover: none) { .slot-item .del { display: block; } }
 
   .run-row { display: flex; gap: 12px; justify-content: center; width: 100%; }
-  /* 執行／正確／錯誤／下一題 共用一個按鈕 */
-  #actBtn {
-    flex: 0 1 240px; height: 58px; border: none; border-radius: 12px;
-    color: #fff; font-size: 22px; font-weight: 700; letter-spacing: 4px; white-space: nowrap;
-    cursor: pointer; background: var(--run); box-shadow: 0 4px 0 #0c3d57;
+  #runBtn, #nextBtn {
+    height: 58px; border: none; border-radius: 12px; color: #fff;
+    font-weight: 700; white-space: nowrap; cursor: pointer;
   }
-  #actBtn.next { background: var(--blue); box-shadow: 0 4px 0 #2a5fc0; }
-  #actBtn.ok   { background: var(--ok);   box-shadow: 0 4px 0 #0b7a5a; animation: pop .3s; }
-  #actBtn.bad  { background: var(--bad);  box-shadow: 0 4px 0 #a83232; animation: shake .4s; }
-  #actBtn:not(:disabled):hover { filter: brightness(1.1); }
-  #actBtn:not(:disabled):active { transform: translateY(2px); }
-  #actBtn:disabled { cursor: default; }
-  @keyframes pop { 0% { transform: scale(.92); } 60% { transform: scale(1.06); } 100% { transform: none; } }
+  #runBtn {
+    flex: 0 1 220px; font-size: 22px; letter-spacing: 6px;
+    background: var(--run); box-shadow: 0 4px 0 #0c3d57;
+  }
+  /* 下一題：答對前灰色不能按，答對後變藍色 */
+  #nextBtn {
+    flex: 0 0 auto; padding: 0 22px; font-size: 18px;
+    background: var(--blue); box-shadow: 0 4px 0 #2a5fc0; transition: background .2s;
+  }
+  #nextBtn:disabled { background: #c9cfdb; box-shadow: 0 4px 0 #aeb5c4; color: #f4f5f8; cursor: not-allowed; }
+  #nextBtn.unlocked { animation: pop .35s; }
+  #runBtn:hover, #nextBtn:not(:disabled):hover { filter: brightness(1.1); }
+  #runBtn:active, #nextBtn:not(:disabled):active { transform: translateY(2px); }
+  @keyframes pop { 0% { transform: scale(.92); } 60% { transform: scale(1.08); } 100% { transform: none; } }
   @keyframes shake { 0%, 100% { transform: none; } 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
 
   .qmark {
@@ -345,7 +350,8 @@
         <div class="step-body">
           <div id="slot"></div>
           <div class="run-row">
-            <button id="actBtn">▶ 執行</button>
+            <button id="runBtn">▶ 執行</button>
+            <button id="nextBtn" disabled title="答對這題才能按">下一題 ▶</button>
           </div>
         </div>
       </div>
@@ -743,36 +749,26 @@ function clearAnswer() {
   resetResult();
 }
 
-/* 按鈕平常是「執行」。按執行後：正確 1 秒 → 下一題；錯誤 1 秒 → 回到執行。
-   作答區空的時候按執行，只提示先放積木，不算答錯。已答對的題目清空作答區時顯示下一題。 */
-let actState = "next";
-let flashTimer = null;
-function setAction(state) {
-  clearTimeout(flashTimer);
-  actState = state;
-  const b = $("actBtn");
-  b.className = state;
-  b.disabled = state === "ok" || state === "bad";
-  b.textContent =
-    state === "run" ? "▶ 執行" :
-    state === "ok" ? "✓ 正確" :
-    state === "bad" ? "✕ 錯誤" :
-    qi === QUESTIONS.length - 1 ? "完成 ▶" : "下一題 ▶";
+/* 「執行」按鈕不變；「下一題」答對這題後才能按（答錯維持灰色）。
+   作答區空的時候按執行，只提示先放積木，不算答錯。 */
+function updateNext(animate = false) {
+  const b = $("nextBtn");
+  const wasDisabled = b.disabled;
+  b.disabled = !solved[qi];
+  b.textContent = qi === QUESTIONS.length - 1 ? "完成 ▶" : "下一題 ▶";
+  b.title = b.disabled ? "答對這題才能按" : "";
+  b.classList.remove("unlocked");
+  if (animate && wasDisabled && !b.disabled) { void b.offsetWidth; b.classList.add("unlocked"); }
 }
-function onAction() {
-  if (actState === "run") {
-    if (!answers.length) {
-      setCheck("check1", "bad", "① 作答區：還沒有積木", "請先把左邊的積木拖到作答區，再按「執行」。");
-      const slot = $("slot");
-      slot.classList.remove("nudge"); void slot.offsetWidth; slot.classList.add("nudge");
-      return;
-    }
-    const ok = run();
-    setAction(ok ? "ok" : "bad");
-    flashTimer = setTimeout(() => setAction(ok ? "next" : "run"), 1000);
-  } else if (actState === "next") {
-    goNext();
+function onRun() {
+  if (!answers.length) {
+    setCheck("check1", "bad", "① 作答區：還沒有積木", "請先把左邊的積木拖到作答區，再按「執行」。");
+    const slot = $("slot");
+    slot.classList.remove("nudge"); void slot.offsetWidth; slot.classList.add("nudge");
+    return;
   }
+  run();
+  updateNext(true);
 }
 
 function onAnswerEdited(el) {
@@ -800,7 +796,7 @@ function resetResult() {
     setCheck("check1", "", "① 作答區", "放好積木、填好白色欄位後，按「執行」。");
     setCheck("check2", "", "② 結果", "作答區正確後，才會檢查執行結果。");
   }
-  setAction(!answers.length && solved[qi] ? "next" : "run");
+  updateNext();
 }
 
 /* 第一階段：檢查作答區的積木與欄位 */
@@ -1123,7 +1119,8 @@ function resetAll() {
   part2 = false;
 }
 
-$("actBtn").onclick = onAction;
+$("runBtn").onclick = onRun;
+$("nextBtn").onclick = () => { if (solved[qi]) goNext(); };
 $("clearBtn").onclick = clearAnswer;
 function updateHintTip() {
   $("hintBtn").dataset.tip =
